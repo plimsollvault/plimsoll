@@ -278,3 +278,14 @@ table.mix{width:100%;border-collapse:collapse;font:400 .82rem var(--mono)}
   .toc{position:static;grid-template-columns:repeat(2,minmax(0,1fr));border-left:0;border-top:2px solid var(--course);padding:10px 0 0}
   .foot-links{gap:6px 14px}
 }
+
+/* phones: keep Docs reachable in the header; Connect wallet lives in the console */
+@media (max-width:900px){
+  .nav .links{display:flex;gap:0}
+  .nav .links a:not([href="/docs"]){display:none}
+  #navConnect{display:none}
+}
+@media (max-width:420px){
+  .nav .icon-link{display:none}
+  .nav .wrap{gap:10px}
+}

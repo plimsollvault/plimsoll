@@ -1,5 +1,6 @@
 require("dotenv").config();
 require("@nomicfoundation/hardhat-ethers");
+require("@nomicfoundation/hardhat-verify");
 
 // Public RPC that served valid TLS during development. The official endpoint
 // (https://rpc.mainnet.chain.robinhood.com) returned an expired certificate on 2026-11-24.
@@ -25,5 +26,11 @@ module.exports = {
       accounts: process.env.DEPLOYER_KEY ? [hexKey(process.env.DEPLOYER_KEY)] : [],
     },
   },
+  // Source verification on Robinhood Chain's Blockscout (no API key needed)
+  etherscan: {
+    apiKey: { robinhood: "blockscout" },
+    customChains: [{ network: "robinhood", chainId: 4663, urls: { apiURL: "https://robinhoodchain.blockscout.com/api", browserURL: "https://robinhoodchain.blockscout.com" } }],
+  },
+  sourcify: { enabled: false },
   mocha: { timeout: 600000 },
 };

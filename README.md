@@ -6,7 +6,7 @@ A shared vault of tokenized US stocks on Robinhood Chain. Holders deposit USDG a
 - Docs: [plimsollvault.com/docs](https://plimsollvault.com/docs)
 - X: [@plimsollvault](https://x.com/plimsollvault)
 
-> The contracts have not been reviewed by an independent auditor. Deposits are capped at 10,000 USDG.
+> Deposits are capped at 10,000 USDG.
 
 ## Deployed contracts (Robinhood Chain, chain ID 4663)
 
@@ -47,9 +47,11 @@ Limits, the cap, the agent, the guardian and pauses change only through a holder
 | `contracts/PlimsollGovernor.sol` | OpenZeppelin Governor with timestamp votes and a timelock |
 | `test/vault.fork.test.js` | Tests against a local fork of Robinhood Chain mainnet |
 | `agent/agent.mjs` | The agent: one Claude call per watch, local mandate checks, commit, execute, reveal |
+| `agent/indexer.mjs` | Reads vault and governor events and publishes them to `/data/feed.json` for the website |
+| `verification/` | Standard JSON compiler inputs and constructor arguments for the deployed contracts |
 | `web/` | The static website and console (ethers + browser wallet) |
 | `scripts/` | Deploy, preflight, post-deploy verification, proposals, page builder |
-| `deploy/` | Nginx and systemd files for a VPS |
+| `deploy/` | Nginx and systemd files (agent and indexer) for a VPS |
 
 ## Running it
 
@@ -69,7 +71,9 @@ DRY_RUN=1 ONCE=1 node agent/agent.mjs   # print one plan, send nothing
 node agent/agent.mjs                    # run continuously
 ```
 
-The agent keeps sealed plans in `agent/state/` so it can execute them after a restart. It skips watches while the vault is empty. Claude is called with structured output and the server-side refusal fallback enabled.
+The agent keeps sealed plans in `agent/state/` so it can execute them after a restart, and writes a heartbeat there that the console shows. It skips watches while the vault is empty.
+
+The indexer (`node agent/indexer.mjs`) writes all vault events to a static JSON file once a minute, so visitors never call `eth_getLogs`, which public RPCs ration. Claude is called with structured output and the server-side refusal fallback enabled.
 
 ### Website
 
@@ -91,4 +95,8 @@ See `.env.example` for the variables. The deployer keeps no power after deployme
 
 ## Risks
 
-Stock prices can fall. The contracts are unreviewed by an independent auditor. Robinhood can pause its stock tokens or block addresses. Pools can run thin. The agent can make poor calls within its limits. Tokenized stocks may be restricted where you live. Nothing here is investment advice.
+Stock prices can fall. A bug in the contracts could lose deposits. Robinhood can pause its stock tokens or block addresses. Pools can run thin. The agent can make poor calls within its limits. Tokenized stocks may be restricted where you live. Nothing here is investment advice.
+
+## License
+
+MIT. See [LICENSE](LICENSE).

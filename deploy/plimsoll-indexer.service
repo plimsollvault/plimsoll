@@ -1,0 +1,25 @@
+# systemd unit for the Plimsoll indexer: publishes vault and governor events to /data/feed.json
+# Copy to /etc/systemd/system/plimsoll-indexer.service
+[Unit]
+Description=Plimsoll event indexer
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=plimsoll
+WorkingDirectory=/opt/plimsoll
+EnvironmentFile=/opt/plimsoll/.env.agent
+Environment=FEED_PATH=/var/www/plimsoll/data/feed.json
+Environment=STATE_DIR=/opt/plimsoll/agent/state
+ExecStart=/usr/bin/node agent/indexer.mjs
+Restart=always
+RestartSec=20
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/plimsoll/agent/state /var/www/plimsoll/data
+
+[Install]
+WantedBy=multi-user.target

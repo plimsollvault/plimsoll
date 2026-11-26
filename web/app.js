@@ -79,7 +79,28 @@ async function readLive() {
 // ------------------------------------------------------------------ logbook from events
 
 let book = { rows: [], executed: [] };
+// The VPS indexer publishes all events to /data/feed.json, so visitors never need eth_getLogs.
+let feed = null;
+async function readFeed() {
+  try {
+    const r = await fetch("/data/feed.json", { cache: "no-store" });
+    if (!r.ok) return null;
+    const f = await r.json();
+    return Date.now() / 1000 - f.updatedAt < 900 ? f : null; // ignore a feed older than 15 minutes
+  } catch { return null; }
+}
+function bookFromFeed(f) {
+  const byEpoch = new Map();
+  const get = (e) => { if (!byEpoch.has(e)) byEpoch.set(e, { epoch: e }); return byEpoch.get(e); };
+  f.commits.forEach((c) => { get(c.epoch).commit = c.commit; });
+  f.executes.forEach((x) => { const r = get(x.epoch); r.weights = x.weights; r.navBefore = BigInt(x.navBefore); r.navAfter = BigInt(x.navAfter); r.turnover = BigInt(x.turnover); r.block = x.block; });
+  f.reveals.forEach((x) => { get(x.epoch).reason = x.reason; });
+  const rows = [...byEpoch.values()].sort((a, b) => b.epoch - a.epoch);
+  return { rows, executed: rows.filter((r) => r.weights).reverse(), counts: f.counts };
+}
+
 async function readLogbook() {
+  if (feed) return bookFromFeed(feed);
   const v = new ethers.Contract(CFG.vault, VAULT_ABI, provider);
   const to = await provider.getBlockNumber();
   const from = Math.max(Number(CFG.deployBlock || 0), to - 400000);
@@ -492,6 +513,21 @@ function drawIndex() {
   g.fillStyle = C.paper; g.strokeStyle = C.course; g.beginPath(); g.arc(X(series.length - 1), Y(series[series.length - 1]), 4, 0, 7); g.fill(); g.stroke();
 }
 
+
+function paintAgent() {
+  const chip = $("#chipAgent"); if (!chip) return;
+  if (!feed) { chip.className = "chip"; chip.innerHTML = "<i></i>Agent: status unavailable"; return; }
+  const a = feed.agent, now = Date.now() / 1000;
+  const ago = a.lastTickAt ? Math.round((now - a.lastTickAt) / 60) : null;
+  const gas = Number(a.ethBalance);
+  const stale = ago === null || ago > 10;
+  const lowGas = gas < 0.0005;
+  let text = stale ? `Agent offline${ago !== null ? " for " + ago + " min" : ""}` : `Agent ${a.status === "waiting for deposits" ? "waiting for deposits" : "online"}`;
+  text += ` · gas ${gas.toFixed(4)} ETH${lowGas ? " (low)" : ""}`;
+  chip.className = "chip" + (stale || lowGas ? " warn" : "");
+  chip.innerHTML = `<i></i>${text}`;
+}
+
 // ------------------------------------------------------------------ wallet
 
 const status = (t, cls = "") => { const s = $("#txStatus"); s.className = cls; s.textContent = t; };
@@ -586,6 +622,10 @@ $("#delegateBtn").onclick = () => { const v = new ethers.Contract(CFG.vault, VAU
 
 let proposals = [];
 async function readProposals() {
+  if (feed) {
+    proposals = feed.proposals.map((p) => ({ id: BigInt(p.id), description: p.description, state: p.state, against: BigInt(p.against), for: BigInt(p.for), abstain: BigInt(p.abstain) })).reverse();
+    return;
+  }
   const g = new ethers.Contract(CFG.governor, GOV_ABI, provider);
   const to = await provider.getBlockNumber();
   const logs = await logsChunked(g, g.filters.ProposalCreated(), Math.max(Number(CFG.deployBlock || 0), to - 400000), to);
@@ -619,6 +659,8 @@ $("#props").addEventListener("click", (e) => {
 
 async function refreshAll() {
   if (!deployed || !provider) { paintLive(); paintLogbook(); return; }
+  feed = await readFeed();
+  paintAgent();
   try {
     live = await readLive();
     limits = live.limits;

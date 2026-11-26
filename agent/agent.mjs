@@ -212,7 +212,8 @@ async function tick() {
   const intoWatch = now - v.epoch * 1800;
   if (v.paused) { log("trading is paused by the guardian or the holder vote"); return; }
   // nothing to manage yet: no Claude call, no gas
-  if (v.supply === 0n && process.env.PLAN_WHEN_EMPTY !== "1") { log("vault is empty, waiting for the first deposit"); return; }
+  if (v.supply === 0n && process.env.PLAN_WHEN_EMPTY !== "1") { agentStatus = "waiting for deposits"; log("vault is empty, waiting for the first deposit"); return; }
+  agentStatus = "running";
 
   // keep reference prices tracking the market (bounded per watch by the contract)
   for (let i = 0; i < v.assets.length; i++) {
@@ -261,15 +262,23 @@ async function tick() {
   }
 }
 
+// The indexer reads this file to show the agent's health in the console.
+let agentStatus = "starting";
+function heartbeat() {
+  if (DRY) return;
+  try { fs.writeFileSync(path.join(STATE_DIR, "heartbeat.json"), JSON.stringify({ at: Math.floor(Date.now() / 1000), status: agentStatus })); } catch {}
+}
+
 async function main() {
   log(`Plimsoll agent on chain ${cfg.chainId}, vault ${vault.target}, model ${MODEL}${DRY ? " (dry run)" : ""}`);
   if (wallet) log(`agent address ${wallet.address}, gas balance ${ethers.formatEther(await provider.getBalance(wallet.address))} ETH`);
   for (;;) {
     try { await tick(); } catch (e) {
-      if (e instanceof Anthropic.RateLimitError) log("Claude rate limit, will retry next tick");
-      else if (e instanceof Anthropic.APIError) log(`Claude API error ${e.status}: ${e.message}`);
-      else log("tick failed:", e.shortMessage || e.message);
+      if (e instanceof Anthropic.RateLimitError) { agentStatus = "Claude rate limited"; log("Claude rate limit, will retry next tick"); }
+      else if (e instanceof Anthropic.APIError) { agentStatus = `Claude API error ${e.status}`; log(`Claude API error ${e.status}: ${e.message}`); }
+      else { agentStatus = "error: " + (e.shortMessage || e.message).slice(0, 80); log("tick failed:", e.shortMessage || e.message); }
     }
+    heartbeat();
     if (process.env.ONCE === "1") break;
     await new Promise((r) => setTimeout(r, TICK_MS));
   }
