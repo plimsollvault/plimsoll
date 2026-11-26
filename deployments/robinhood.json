@@ -1,0 +1,12 @@
+{
+  "chainId": 4663,
+  "network": "robinhood",
+  "vault": "0x400AdDF7026e821028BEC03B2b42f2e4F98B3a22",
+  "governor": "0xE7d5602c061263De60b4Db20745c98538844F4f3",
+  "timelock": "0xD9B4342f47b0F4031D8aFdDD262cd338D596841A",
+  "agent": "0x28fa1b856f03000cc7d68923f24b116b0bdf4f9f",
+  "guardian": "0x9b59bc09da5b6a37557ecd248ac9d4d3f10cf583",
+  "depositCapUsdg": 10000,
+  "deployBlock": 123394765,
+  "deployedAt": "2026-11-26T01:57:03.598Z"
+}

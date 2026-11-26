@@ -1,0 +1,9 @@
+node_modules/
+artifacts/
+cache/
+.env
+agent/state/
+deployments/localhost.json
+ballast.html
+previews/
+.claude/

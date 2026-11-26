@@ -1,0 +1,24 @@
+# systemd unit that keeps the Plimsoll agent running and restarts it after crashes or reboots.
+# Copy to /etc/systemd/system/plimsoll-agent.service
+[Unit]
+Description=Plimsoll vault agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=plimsoll
+WorkingDirectory=/opt/plimsoll
+# holds AGENT_KEY, VAULT_ADDRESS, ANTHROPIC_API_KEY, ROBINHOOD_RPC (never the deployer key)
+EnvironmentFile=/opt/plimsoll/.env.agent
+ExecStart=/usr/bin/node agent/agent.mjs
+Restart=always
+RestartSec=15
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/plimsoll/agent/state
+
+[Install]
+WantedBy=multi-user.target
