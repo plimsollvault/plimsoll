@@ -172,6 +172,47 @@ describe("PlimsollVault on a Robinhood Chain mainnet fork", function () {
     await (await vault.connect(deployer).setPaused(false, false)).wait();
   });
 
+  it("keeps payouts deferred by a paused stock token reserved for their owners", async function () {
+    const AAPL = cfg.assets[0].token;
+    const aapl = await ethers.getContractAt("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20", AAPL);
+    const vaultAddr = await vault.getAddress();
+    // AAPL is a beacon proxy; the paused stand-in delegates everything but transfer to the live implementation
+    const IMPL = "0xb35490d6f9163DE4F80d88dc75c3516eb64C5aE2";
+    const original = await ethers.provider.getCode(AAPL);
+    const Paused = await ethers.getContractFactory("PausedToken");
+    const stand = await Paused.deploy(IMPL);
+    await network.provider.send("hardhat_setCode", [AAPL, await ethers.provider.getCode(await stand.getAddress())]);
+
+    const balBefore = await aapl.balanceOf(vaultAddr);
+    expect(balBefore > 0n).to.equal(true);
+    const navBefore = await vault.navSpot();
+    const aliceShares = (await vault.balanceOf(alice.address)) / 2n;
+    const bobShares = await vault.balanceOf(bob.address);
+    await (await vault.connect(alice).redeem(aliceShares, alice.address)).wait();
+    await (await vault.connect(bob).redeem(bobShares, bob.address)).wait();
+
+    const owedA = await vault.owed(alice.address, AAPL), owedB = await vault.owed(bob.address, AAPL);
+    const totalOwed = await vault.totalOwed(AAPL);
+    console.log("      AAPL deferred to alice/bob:", ethers.formatUnits(owedA, 18), ethers.formatUnits(owedB, 18));
+    expect(owedA > 0n && owedB > 0n).to.equal(true);
+    expect(totalOwed).to.equal(owedA + owedB);
+    // nothing has left the vault, and the reserved part is no longer counted as the remaining holders'
+    expect(await aapl.balanceOf(vaultAddr)).to.equal(balBefore);
+    expect(totalOwed <= balBefore).to.equal(true);
+    expect((await vault.navSpot()) < navBefore).to.equal(true);
+
+    // claims fail while paused, then everyone is paid in full once the token moves again
+    await reverts(vault.connect(alice).claimOwed(AAPL), "claim while paused");
+    await network.provider.send("hardhat_setCode", [AAPL, original]);
+    await (await vault.connect(alice).claimOwed(AAPL)).wait();
+    await (await vault.connect(bob).claimOwed(AAPL)).wait();
+    expect(await vault.totalOwed(AAPL)).to.equal(0n);
+    expect(await vault.owed(alice.address, AAPL)).to.equal(0n);
+    // the last holder can still redeem everything that is left
+    await (await vault.connect(alice).redeem(await vault.balanceOf(alice.address), alice.address)).wait();
+    expect(await vault.totalSupply()).to.equal(0n);
+  });
+
   it("blocks trading when spot drifts too far from the reference", async function () {
     // push AAPL's pool price up hard with a large buy, then try to trade
     const whale = await impersonate(USDG_WHALE);

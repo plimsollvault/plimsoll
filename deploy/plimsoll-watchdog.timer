@@ -1,0 +1,11 @@
+# Copy to /etc/systemd/system/plimsoll-watchdog.timer, then: systemctl enable --now plimsoll-watchdog.timer
+[Unit]
+Description=Run the Plimsoll watchdog every 5 minutes
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

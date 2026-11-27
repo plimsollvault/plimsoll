@@ -1,0 +1,27 @@
+# One watchdog run; started every 5 minutes by plimsoll-watchdog.timer.
+# Copy to /etc/systemd/system/plimsoll-watchdog.service
+[Unit]
+Description=Plimsoll watchdog check
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=plimsoll
+WorkingDirectory=/opt/plimsoll
+EnvironmentFile=/opt/plimsoll/.env.agent
+Environment=STATE_DIR=/opt/plimsoll/agent/state
+Environment=FEED_PATH=/var/www/plimsoll/data/feed.json
+ExecStart=/usr/bin/node agent/watchdog.mjs
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+UMask=0077
+ReadWritePaths=/opt/plimsoll/agent/state

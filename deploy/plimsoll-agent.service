@@ -14,10 +14,28 @@ EnvironmentFile=/opt/plimsoll/.env.agent
 ExecStart=/usr/bin/node agent/agent.mjs
 Restart=always
 RestartSec=15
+# sandbox: the service can write only its state folder
 NoNewPrivileges=true
-ProtectSystem=full
+ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+RemoveIPC=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallArchitectures=native
+UMask=0077
 ReadWritePaths=/opt/plimsoll/agent/state
 
 [Install]

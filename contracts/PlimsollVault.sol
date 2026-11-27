@@ -100,6 +100,7 @@ contract PlimsollVault is ERC20, ERC20Votes, ReentrancyGuard, IUnlockCallback {
     uint8 internal _navIdx;
 
     mapping(address => mapping(address => uint256)) public owed; // in-kind payouts that could not be sent
+    mapping(address => uint256) public totalOwed; // per token; reserved for its owners and excluded from the vault
 
     address private _activeV3Pool;
     bool private _inV4Swap;
@@ -238,10 +239,10 @@ contract PlimsollVault is ERC20, ERC20Votes, ReentrancyGuard, IUnlockCallback {
         uint256 supply = totalSupply();
         if (shares == 0 || supply == 0) revert ZeroShares();
         _burn(msg.sender, shares);
-        _payOut(address(usdg), Math.mulDiv(usdg.balanceOf(address(this)), shares, supply), receiver);
+        _payOut(address(usdg), Math.mulDiv(_held(address(usdg)), shares, supply), receiver);
         for (uint256 i = 0; i < _assets.length; i++) {
             address t = _assets[i].token;
-            _payOut(t, Math.mulDiv(IERC20(t).balanceOf(address(this)), shares, supply), receiver);
+            _payOut(t, Math.mulDiv(_held(t), shares, supply), receiver);
         }
         emit Redeemed(msg.sender, receiver, shares);
     }
@@ -251,7 +252,15 @@ contract PlimsollVault is ERC20, ERC20Votes, ReentrancyGuard, IUnlockCallback {
         uint256 amt = owed[msg.sender][token];
         if (amt == 0) return;
         owed[msg.sender][token] = 0;
+        totalOwed[token] -= amt;
         IERC20(token).safeTransfer(msg.sender, amt);
+    }
+
+    /// @dev The part of a token balance that belongs to holders: the balance less deferred payouts.
+    function _held(address token) internal view returns (uint256) {
+        uint256 bal = IERC20(token).balanceOf(address(this));
+        uint256 o = totalOwed[token];
+        return bal > o ? bal - o : 0;
     }
 
     function _payOut(address token, uint256 amount, address to) internal {
@@ -259,6 +268,7 @@ contract PlimsollVault is ERC20, ERC20Votes, ReentrancyGuard, IUnlockCallback {
         (bool ok, bytes memory ret) = token.call(abi.encodeCall(IERC20.transfer, (to, amount)));
         if (!ok || (ret.length != 0 && !abi.decode(ret, (bool)))) {
             owed[to][token] += amount;
+            totalOwed[token] += amount;
             emit PayoutDeferred(to, token, amount);
         }
     }
@@ -295,13 +305,13 @@ contract PlimsollVault is ERC20, ERC20Votes, ReentrancyGuard, IUnlockCallback {
         Limits memory l = limits;
         uint256[] memory spot = new uint256[](n);
         uint256[] memory value = new uint256[](n);
-        uint256 nav = usdg.balanceOf(address(this));
+        uint256 nav = _held(address(usdg));
         for (uint256 i = 0; i < n; i++) {
             spot[i] = _spot(i);
             uint256 r = refPrice[i];
             uint256 diff = spot[i] > r ? spot[i] - r : r - spot[i];
             if (diff * BPS > r * l.maxDeviationBps) revert PriceDeviation(i);
-            value[i] = Math.mulDiv(IERC20(_assets[i].token).balanceOf(address(this)), spot[i], 1e18);
+            value[i] = Math.mulDiv(_held(_assets[i].token), spot[i], 1e18);
             nav += value[i];
         }
 
@@ -325,7 +335,7 @@ contract PlimsollVault is ERC20, ERC20Votes, ReentrancyGuard, IUnlockCallback {
             target[i] = Math.mulDiv(nav, weights[i], BPS);
             moved += target[i] > value[i] ? target[i] - value[i] : value[i] - target[i];
         }
-        uint256 cashNow = usdg.balanceOf(address(this));
+        uint256 cashNow = _held(address(usdg));
         uint256 cashTarget = Math.mulDiv(nav, weights[n], BPS);
         moved += cashTarget > cashNow ? cashTarget - cashNow : cashNow - cashTarget;
         uint256 turnover = moved / 2;
@@ -346,7 +356,7 @@ contract PlimsollVault is ERC20, ERC20Votes, ReentrancyGuard, IUnlockCallback {
         for (uint256 i = 0; i < n; i++) {
             if (target[i] > value[i] && target[i] - value[i] >= MIN_TRADE) {
                 uint256 amountIn = target[i] - value[i];
-                uint256 avail = usdg.balanceOf(address(this));
+                uint256 avail = _held(address(usdg));
                 if (amountIn > avail) amountIn = avail;
                 if (amountIn < MIN_TRADE) continue;
                 uint256 minOut = _minOut(Math.mulDiv(amountIn, 1e18, refPrice[i]), i, l.maxSlippageBps);
@@ -488,9 +498,9 @@ contract PlimsollVault is ERC20, ERC20Votes, ReentrancyGuard, IUnlockCallback {
     }
 
     function _nav(bool high) internal view returns (uint256 nav) {
-        nav = usdg.balanceOf(address(this));
+        nav = _held(address(usdg));
         for (uint256 i = 0; i < _assets.length; i++) {
-            uint256 bal = IERC20(_assets[i].token).balanceOf(address(this));
+            uint256 bal = _held(_assets[i].token);
             if (bal == 0) continue;
             uint256 p = _spot(i);
             if (high && refPrice[i] > p) p = refPrice[i];

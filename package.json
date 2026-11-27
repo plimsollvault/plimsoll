@@ -8,7 +8,9 @@
     "test": "hardhat test",
     "deploy": "hardhat run scripts/deploy.js --network robinhood",
     "agent": "node agent/agent.mjs",
-    "web": "npx --yes serve web -l 5173"
+    "web": "npx --yes serve web -l 5173",
+    "test:e2e": "node test/e2e/console.e2e.mjs",
+    "watchdog": "node agent/watchdog.mjs"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ethers": "3.0.8",
@@ -16,7 +18,8 @@
     "@openzeppelin/contracts": "5.1.0",
     "chai": "^4.5.0",
     "ethers": "6.13.4",
-    "hardhat": "2.22.17"
+    "hardhat": "2.22.17",
+    "puppeteer-core": "^23.11.1"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.14.0",

@@ -15,10 +15,28 @@ Environment=STATE_DIR=/opt/plimsoll/agent/state
 ExecStart=/usr/bin/node agent/indexer.mjs
 Restart=always
 RestartSec=20
+# sandbox: the service can write only its state folder and the public feed
 NoNewPrivileges=true
-ProtectSystem=full
+ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+RemoveIPC=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallArchitectures=native
+UMask=0022
 ReadWritePaths=/opt/plimsoll/agent/state /var/www/plimsoll/data
 
 [Install]
